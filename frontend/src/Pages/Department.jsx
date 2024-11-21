@@ -1,42 +1,100 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
+import {
+  getAllDepartments,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
+} from '../services/departmentService'; // Import the services
 
 export default function Department() {
   const [departments, setDepartments] = useState([]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
+  const [editingId, setEditingId] = useState(null); // Track if we are editing a department
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const newDepartment = {
-      id: departments.length + 1,
-      name,
-      description,
-      date
+  // Fetch all departments from the backend
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const data = await getAllDepartments();
+        setDepartments(data);
+      } catch (err) {
+        setError('Failed to load departments');
+      }
     };
-    setDepartments([...departments, newDepartment]);
+
+    fetchDepartments();
+  }, []);
+
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const newDepartment = { name, description, date };
+
+    try {
+      if (editingId) {
+        // Update existing department
+        await updateDepartment(editingId, newDepartment);
+        setDepartments((prevDepartments) =>
+          prevDepartments.map((dept) =>
+            dept.id === editingId ? { id: editingId, ...newDepartment } : dept
+          )
+        );
+        setEditingId(null); // Reset editing state
+      } else {
+        // Create a new department
+        const response = await createDepartment(newDepartment);
+        setDepartments([...departments, { id: response.departmentId, ...newDepartment }]);
+      }
+      resetForm();
+    } catch (err) {
+      setError('Failed to save department');
+    }
+  };
+
+  // Reset the form fields
+  const resetForm = () => {
     setName('');
     setDescription('');
     setDate('');
+    setEditingId(null);
   };
 
+  // Handle edit action
   const handleEdit = (id) => {
-    // Placeholder for edit functionality
-    console.log(`Edit department with id: ${id}`);
+    const departmentToEdit = departments.find((dept) => dept.id === id);
+    if (departmentToEdit) {
+      setName(departmentToEdit.name);
+      setDescription(departmentToEdit.description);
+      setDate(departmentToEdit.date.split('T')[0]); // Extract the date part
+      setEditingId(id);
+    }
   };
 
-  const handleDelete = (id) => {
-    // Placeholder for delete functionality
-    console.log(`Delete department with id: ${id}`);
-    setDepartments(departments.filter(dept => dept.id !== id));
+  // Handle delete action
+  const handleDelete = async (id) => {
+    try {
+      await deleteDepartment(id);
+      setDepartments(departments.filter((dept) => dept.id !== id));
+    } catch (err) {
+      setError('Failed to delete department');
+    }
   };
 
   return (
     <div className="container mx-auto px-4">
       <h1 className="text-2xl font-bold mb-4">Departments</h1>
-      
-      <form onSubmit={handleSubmit} className="mb-8 bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+
+      {error && <div className="mb-4 text-red-500">{error}</div>}
+
+      <form
+        onSubmit={handleSubmit}
+        className="mb-8 bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4"
+      >
         <div className="mb-4">
           <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
             Name
@@ -82,11 +140,11 @@ export default function Department() {
             className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
             type="submit"
           >
-            Add Department
+            {editingId ? 'Update Department' : 'Add Department'}
           </button>
         </div>
       </form>
-      
+
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white">
           <thead>
@@ -115,13 +173,13 @@ export default function Department() {
                   {dept.id}
                 </td>
                 <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-500">
-                  {dept.name}
+                  {dept.name || 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-500">
-                  {dept.description}
+                  {dept.description || 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-500">
-                  {dept.date}
+                  {dept.date ? new Date(dept.date).toLocaleDateString() : 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-500">
                   <button
